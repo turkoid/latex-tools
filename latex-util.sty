@@ -1,0 +1,412 @@
+% **************************************************
+% LaTeX common utilities
+%
+% Author: John Ross
+% **************************************************
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{latex-util}[2018/03/01 latex utilities]
+
+% **************************************************
+% packages
+% **************************************************
+
+% latex3
+\RequirePackage{etoolbox}
+\RequirePackage{expl3}
+\RequirePackage{xparse}
+\RequirePackage{url}
+\RequirePackage{enumitem}
+
+% **************************************************
+% commands
+% **************************************************
+
+\ExplSyntaxOn
+
+\cs_new_protected:Npn \starcmd:NnT #1#2 {
+  \exp_last_unbraced:Nf #1 { \IfBooleanT {#2} {*} }
+}
+\cs_new_protected:Npn \starcmd:NnF #1#2 {
+  \exp_last_unbraced:Nf #1 { \IfBooleanF {#2} {*} }
+}
+\NewDocumentCommand {\starcmdT} {m m} {
+  \starcmd:NnT #1 {#2}
+}
+\NewDocumentCommand {\starcmdF} {m m} {
+  \starcmd:NnF {#1} {#2}
+}
+
+\cs_new_protected:Nn \str_prepend:NN { \str_concat:NNN #1 #2 #1 }
+\cs_generate_variant:Nn \str_prepend:NN {Nc, cN, cc}
+
+\cs_new_protected:Nn \str_append:NN { \str_concat:NNN #1 #1 #2 }
+\cs_generate_variant:Nn \str_append:NN {Nc, cN, cc}
+
+\cs_new_protected:Nn \tl_prepend:NN { \tl_concat:NNN #1 #2 #1 }
+\cs_generate_variant:Nn \tl_prepend:NN {Nc, cN, cc}
+
+\cs_new_protected:Nn \tl_append:NN { \tl_concat:NNN #1 #1 #2 }
+\cs_generate_variant:Nn \tl_append:NN {Nc, cN, cc}
+
+\cs_new_protected:Npn \bool_provide:N #1 { \bool_if_exist:NF #1 { \bool_new:N #1 } }
+\cs_generate_variant:Nn \bool_provide:N {c}
+
+\cs_new_protected:Npn \tl_provide:N #1 { \tl_if_exist:NF #1 { \tl_new:N #1 } }
+\cs_generate_variant:Nn \tl_provide:N {c}
+
+\cs_new_protected:Npn \str_provide:N #1 { \str_if_exist:NF #1 { \str_new:N #1 } }
+\cs_generate_variant:Nn \str_provide:N {c}
+
+\cs_new_protected:Npn \seq_provide:N #1 { \seq_if_exist:NF #1 { \seq_new:N #1 } }
+\cs_generate_variant:Nn \seq_provide:N {c}
+
+\cs_new_protected:Npn \clist_provide:N #1 { \clist_if_exist:NF #1 { \clist_new:N #1 } }
+\cs_generate_variant:Nn \clist_provide:N {c}
+
+\cs_new_protected:Npn \int_provide:N #1 { \int_if_exist:NF #1 { \int_new:N #1 } }
+\cs_generate_variant:Nn \int_provide:N {c}
+
+\cs_new:Npn \str_escape:N #1 {
+  \regex_replace_all:nnN {\\(.)\s?} {\1} #1
+}
+\cs_generate_variant:Nn \str_escape:N {c}
+
+\cs_new:Npn \tl_escape:N #1 {
+  \str_clear_new:N \l_tmp_escape_str
+  \exp_args:Nnf \str_set:Nn \l_tmp_escape_str {\tl_to_str:N #1}
+  \str_escape:N \l_tmp_escape_str
+  \tl_set:Nx #1 \l_tmp_escape_str
+}
+\cs_generate_variant:Nn \tl_escape:N {c}
+
+\cs_new:Npn \clist_escape:N #1 {
+  \clist_set_eq:NN \l_tmpa_clist #1
+  \clist_clear:N #1
+  \clist_map_inline:Nn \l_tmpa_clist {
+    \tl_set:Nn \l_tmpa_tl {##1}
+    \tl_escape:N \l_tmpa_tl
+    \clist_put_right:Nx #1 {\l_tmpa_tl}
+  }
+}
+\cs_generate_variant:Nn \clist_escape:N {c}
+
+\cs_new:Npn \seq_escape:N #1 {
+  \seq_set_eq:NN \l_tmpa_seq #1
+  \seq_clear:N #1
+  \seq_map_inline:Nn \l_tmpa_seq {
+    \seq_put_right:Nx #1 {\tl_escape:n {##1}}
+  }
+}
+\cs_generate_variant:Nn \seq_escape:N {c}
+
+\cs_new:Npn \bool_escape:N #1 {}
+\cs_generate_variant:Nn \bool_escape:N {c}
+
+\cs_new:Npn \tl_escape:n #1 {
+  \tl_set:Nn \l_tmp_escape_tl {#1}
+  \tl_escape:N \l_tmp_escape_tl
+  \tl_to_str:N \l_tmp_escape_tl
+}
+
+\cs_new:Npn \tl_wrap:n #1 {
+  \seq_clear_new:c {l_tmp_wrap_input_seq}
+  \seq_clear_new:c {l_tmp_wrap_output_seq}
+  \seq_clear_new:c {l_tmp_wrap_temp_seq}
+  \seq_set_split:Nnn \l_tmp_wrap_input_seq {~} {#1}
+  \seq_map_inline:cn {l_tmp_wrap_input_seq} {
+    \seq_set_split:Nnn \l_tmp_wrap_temp_seq { } {##1}
+    \seq_put_right:cx {l_tmp_wrap_output_seq} {
+      \seq_use:cn {l_tmp_wrap_temp_seq} {
+        \mode_if_math:TF {\allowbreak} {\hspace {0pt plus 0.02em}}
+      }
+    }
+  }
+  \seq_use:cn {l_tmp_wrap_output_seq} {~}
+}
+
+\NewDocumentCommand {\provideset} {s m m m} {
+  \use:c {#2_provide:c} {#3}
+  \IfBooleanTF {#1} {
+    \use:c {#2_set:cn} {#3} {#4}
+  } {
+    \use:c {#2_set_eq:cc} {#3} {#4}
+  }
+}
+
+\NewDocumentCommand {\escape} {m o} {
+  \provideset* {tl} {l_tmp_escape_tl} {#1}
+  \tl_escape:c {l_tmp_escape_tl}
+  \IfValueTF {#2} {
+    \tl_set_eq:cc {#2} {l_tmp_escape_tl}
+  } {
+    \tl_to_str:c {l_tmp_escape_tl}
+  }
+}
+
+\NewDocumentCommand {\wrap} {m} {
+  \tl_wrap:n {#1}
+}
+
+\NewDocumentCommand {\buildmodulekeycsname} {o m m} {
+  \str_clear_new:c {#3}
+  \str_put_right:cn {#3} {l_}
+  \IfNoValueTF {#1} {
+    \str_append:cc {#3} {l_key_default_module_str}
+  } {
+    \str_put_right:cn {#3} {#1}
+  }
+  \str_put_right:cn {#3} {_#2}
+  \str_remove_all:cn {#3} {~}
+  \str_replace_all:cnn {#3} {/} {_}
+}
+
+\NewDocumentCommand {\buildkeycsname} {o m m O{l_key_csname_str}} {
+  \buildmodulekeycsname [#1] {#2_#3} {#4}
+}
+
+\NewDocumentCommand {\buildmodulecsname} {o O{l_module_csname_str}} {
+  \buildmodulekeycsname [#1] {keys_seq} {#2}
+}
+
+\NewDocumentCommand {\debugmodulekeys} {o} {
+  \IfValueT {#1} { \buildmodulecsname [#1] }
+  \seq_map_inline:cn {\str_use:c {l_module_csname_str}} {
+    \par ##1=\getkey {##1}
+  }
+}
+
+\NewDocumentCommand {\setupkeydefaults} {m} {
+  \buildmodulecsname [#1]
+  \exp_args:Nnf \keys_set:nn {#1} {
+    \seq_use:cn {\str_use:c {l_module_csname_str}} {,}
+  }
+}
+
+\NewDocumentCommand {\setupkeys} {s m o} {
+  \buildmodulecsname [#2]
+  \str_clear_new:c {l_key_default_module_str}
+  \str_set:cn {l_key_default_module_str} {#2}
+  \IfValueT {#3} {
+    \IfBooleanF {#1} { \setupkeydefaults {#2} }
+    \keys_set:nn {#2} {#3}
+  }
+}
+
+\NewDocumentCommand {\__add_key} {m m m O{#3} m +m m +m m} {
+  \IfNoValueTF {#9} {
+    \buildkeycsname [#1] {#2} {#3}
+  } {
+    \str_clear_new:c {l_key_csname_str}
+    \str_set:cn {l_key_csname_str} {#8}
+  }
+  \use:c {#3_new:c} {\str_use:c {l_key_csname_str}}
+  \starcmd:NnF \provideset {#5} {#3} {l_tmp_key_default_#3} {#6}
+  \starcmd:NnF \provideset {#7} {#3} {l_tmp_key_initial_#3} {#8}
+  \str_provide:c {l_tmp_current_module_str}
+  \IfValueTF {#1} {
+    \str_set:cn {l_tmp_current_module_str} {#1}
+  } {
+    \str_set_eq:cc {l_tmp_current_module_str} {l_key_default_module_str}
+  }
+  \buildkeycsname [#1] {#2 / type} {tl} [l_key_type_csname_str]
+  \exp_args:Nxx \keys_define:nn {\str_use:c {l_tmp_current_module_str}} {
+    #2 .#3_set:c = \str_use:c {l_key_csname_str},
+    #2 .default:n =  {\exp_not:f {\use:c {l_tmp_key_default_#3}}},
+    #2 .initial:n = {\exp_not:f {\use:c {l_tmp_key_initial_#3}}},
+    #2 / type .tl_set:c = \str_use:c {l_key_type_csname_str},
+    #2 / type .default:n = {#4}
+  }
+  \exp_args:Nx \keys_set:nn {\str_use:c {l_tmp_current_module_str}} {
+    #2, #2 / type
+  }
+  \buildmodulecsname [#1]
+  \exp_args:Nf \seq_provide:c {\str_use:c {l_module_csname_str}}
+  \seq_put_right:cn {\str_use:c {l_module_csname_str}} {#2}
+}
+
+\NewDocumentCommand {\addkey} {o m t*+O{} t*+O{} o} {
+  \__add_key {#1} {#2} {tl} {#3} {#4} {#5} {#6} {#7}
+}
+
+\NewDocumentCommand {\addlistkey} {o m t*+O{} t*+O{} o} {
+  \__add_key {#1} {#2} {clist} {#3} {#4} {#5} {#6} {#7}
+}
+
+\NewDocumentCommand {\addboolkey} {o m t*O{} t*O{} o} {
+  \starcmd:NnF \provideset {#3} {tl} {l_tmp_key_default_tl} {#4}
+  \starcmd:NnF \provideset {#5} {tl} {l_tmp_key_initial_tl} {#6}
+  \tl_if_empty:cF {l_tmp_key_default_tl} {
+    \exp_args:Nx \tl_if_eq:nnF {\use:c {l_tmp_key_default_tl}} {true} {
+      \tl_set:cn {l_tmp_key_default_tl} {false}
+    }
+  }
+  \tl_if_empty:cF {l_tmp_key_initial_tl} {
+    \exp_args:Nx \tl_if_eq:nnF {\use:c {l_tmp_key_initial_tl}} {true} {
+      \tl_set:cn {l_tmp_key_initial_tl} {false}
+    }
+  }
+  \__add_key {#1} {#2} {tl} [bool]
+    {\c_true_bool} {l_tmp_key_default_tl}
+    {\c_true_bool} {l_tmp_key_initial_tl}
+    {#7}
+}
+
+\NewDocumentCommand {\getkeytype} {o m o} {
+  \tl_provide:c {l_tmp_key_type_tl}
+  \buildkeycsname [#1] {#2 / type} {tl} [l_key_type_csname_str]
+  \IfValueTF {#3} {
+    \tl_provide:c {#3}
+    \tl_set_eq:cc {#3} {\str_use:c {l_key_type_csname_str}}
+  } {
+    \use:c {\str_use:c {l_key_type_csname_str}}
+  }
+}
+
+\NewDocumentCommand {\gettypedkey} {s o m O{#5} m o} {
+  \use:c {#5_provide:c} {l_tmp_key_value_#5}
+  \clist_map_inline:nn {#3} {
+    \getkeytype [#2] {##1} [l_tmp_key_type_tl]
+    \str_if_eq_x:nnT {\l_tmp_key_type_tl} {#4} {
+      \exp_args:Nf \keys_if_exist:nnTF {\IfValueTF {#2} {#2} {\str_use:c {l_key_default_module_str}}} {##1} {
+        \buildkeycsname [#2] {##1} {#5}
+        \use:c {#5_set_eq:cc} {l_tmp_key_value_#5} {\str_use:c {l_key_csname_str}}
+        \IfBooleanT {#1} {
+          \use:c {#5_escape:c} {l_tmp_key_value_#5}
+        }
+      } {
+        \use:c {#5_set:cn} {l_tmp_key_value_#5} {Key~Does~Not~Exist}
+      }
+    }
+    \tl_if_empty:cF {l_tmp_key_value_#5} {
+      \clist_map_break:n {}
+    }
+  }
+  \IfValueTF {#6} {
+    \use:c {#5_provide:c} {#6}
+    \use:c {#5_set_eq:cc} {#6} {l_tmp_key_value_#5}
+  } {
+    \use:c {l_tmp_key_value_#5}
+  }
+}
+
+\NewDocumentCommand {\getkey} {s o m o} {
+  \clist_map_inline:nn {#3} {
+    \getkeytype [#2] {##1} [l_tmp_key_type_tl]
+    \clist_map_break:n {}
+  }
+  \exp_args:Nx \str_case:nn {\tl_to_str:c {l_tmp_key_type_tl}} {
+    {tl} {\starcmd:NnT \gettypedkey {#1} [#2] {#3} {tl} [#4]}
+    {clist} {\starcmd:NnT \getlistkey {#1} [#2] {#3} [#4]}
+    {bool} {\starcmd:NnT \getboolkey {#1} [#2] {#3} [#4]}
+  }
+}
+
+\NewDocumentCommand {\getlistkey} {s o m t+t-o} {
+  \starcmd:NnT \gettypedkey {#1} [#2] {#3} {clist} [l_tmp_key_value_clist]
+  \IfBooleanTF {#4} {
+    \exp_args:Nnf \clist_use:cn {l_tmp_key_value_clist} {\IfValueTF {#6} {#6} {,~}}
+  } {
+    \IfBooleanTF {#5} {
+      \exp_args:Nf \begin{ \IfValueTF {#6} {#6} {enumerate} }
+        \clist_map_inline:cn {l_tmp_key_value_clist} {
+          \item ##1
+        }
+      \exp_args:Nf \end{ \IfValueTF {#6} {#6} {enumerate} }
+    } {
+      \IfValueTF {#6} {
+        \clist_set_eq:cc {#6} {l_tmp_key_value_clist}
+      } {
+        \clist_use:cn {l_tmp_key_value_clist} {,~}
+      }
+    }
+  }
+}
+
+\NewDocumentCommand {\getboolkey} {s o m t?o} {
+  \starcmd:NnT \gettypedkey {#1} [#2] {#3} [bool] {tl} [l_tmp_key_value_tl]
+  \IfValueTF {#5} {
+    \IfBooleanTF {#4} {
+      \exp_args:Nx \tl_if_eq:nnTF {\l_tmp_key_value_tl} {true} {
+        \bool_set_true:c {#5}
+      } {
+        \bool_set_false:c {#5}
+      }
+    } {
+      \tl_set_eq:cc {#5} {l_tmp_key_value_tl}
+    }
+  } {
+    \use:c {l_tmp_key_value_tl}
+  }
+}
+
+\NewDocumentCommand {\IfBoolKeyTF} {o m} {
+  \getboolkey [#1] {#2} ?[l_tmpa_bool]
+  \bool_if:cTF {l_tmpa_bool}
+}
+
+\NewDocumentCommand {\IfBoolKeyT} {o m} {
+  \getboolkey [#1] {#2} ?[l_tmpa_bool]
+  \bool_if:cT {l_tmpa_bool}
+}
+
+\NewDocumentCommand {\IfBoolKeyF} {o m} {
+  \getboolkey [#1] {#2} ?[l_tmpa_bool]
+  \bool_if:cF {l_tmpa_bool}
+}
+
+\NewDocumentCommand {\IfKeyEmptyTF} {s o m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#4]
+  \tl_if_empty:cTF {#4}
+}
+
+\NewDocumentCommand {\IfKeyEmptyT} {s o m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#4]
+  \tl_if_empty:cT {#4}
+}
+
+\NewDocumentCommand {\IfKeyEmptyF} {s o m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#4]
+  \tl_if_empty:cF {#4}
+}
+
+\NewDocumentCommand {\IfKeyEqualTF} {s o m m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#5]
+  \exp_args:Nff \str_if_eq:nnTF {#4} {\tl_to_str:c {#5}}
+}
+
+\NewDocumentCommand {\IfKeyEqualT} {s o m m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#5]
+  \exp_args:Nff \str_if_eq:nnT {#4} {\tl_to_str:c {#5}}
+}
+
+\NewDocumentCommand {\IfKeyEqualF} {s o m m O{l_tmp_key_check_tl}} {
+  \starcmd:NnT \getkey {#1} [#2] {#3} [#5]
+  \exp_args:Nff \str_if_eq:nnF {#4} {\tl_to_str:c {#5}}
+}
+
+\NewDocumentCommand {\overridelist} {s O{9} m m m} {
+  \IfBooleanTF {#1} {
+    \newlist {#3} {#4} {#2}
+    \setlist [#3] {#5}
+  } {
+    \clist_set:cn {l_tmpa_clist} {#5}
+    \exp_args:Nnnf \newlist {#3} {#4} {\clist_count:c {l_tmpa_clist}}
+    \int_zero:c {l_tmpa_int}
+    \clist_map_inline:cn {l_tmpa_clist} {
+      \int_incr:c {l_tmpa_int}
+      \setlist [#3, \int_use:c {l_tmpa_int}] {##1}
+    }
+  }
+}
+
+\NewDocumentCommand {\mapinline} {m} {
+  \use:c {#1_map_inline:nn}
+}
+
+\NewDocumentCommand {\uselist} {m} {
+  \clist_use:nn
+}
+
+\ExplSyntaxOff
+
+\endinput
